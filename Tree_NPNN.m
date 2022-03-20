@@ -8,7 +8,11 @@ classdef Tree_NPNN
         
         % parameters
         w_
+        w_acc_
+        w_avg_
         b_
+        b_acc_
+        b_avg_
         connectivity_
         node_pc_means_
         P_
@@ -28,10 +32,13 @@ classdef Tree_NPNN
         g_
         
         % results
+        mu_train_array_
         tpr_train_array_
         fpr_train_array_
         tpr_test_array_
         fpr_test_array_
+        neg_class_weight_train_array_
+        pos_class_weight_train_array_
         
     end
     
@@ -98,7 +105,12 @@ classdef Tree_NPNN
             
             % perceptron parameters
             w = randn(2*D, tree_node_number);                              % weight of each node
+            w_acc = zeros(2*D, tree_node_number);                          % accumulated perceptron weight
+            w_avg = zeros(2*D, tree_node_number);                          % average perceptron weight
             b = randn(1, tree_node_number);                                % bias of each node
+            b_acc = zeros(1, tree_node_number);                            % accumulated perceptron bias
+            b_avg = zeros(1, tree_node_number);                            % average perceptron bias
+            
             alpha = zeros(n_features*tree_node_number, D);
             for i=1:tree_node_number
                 alpha((i-1)*n_features+1:i*n_features,:) = mvnrnd(zeros(n_features,1), 2*g*eye(n_features), D)';
@@ -112,7 +124,11 @@ classdef Tree_NPNN
             
             % save initial model parameters
             obj.w_ = w;
+            obj.w_acc_ = w_acc;
+            obj.w_avg_ = w_avg;
             obj.b_ = b;
+            obj.b_acc_ = b_acc;
+            obj.b_avg_ = b_avg;
             obj.connectivity_ = connectivity;
             obj.node_pc_means_ = node_pc_means;
             obj.P_ = P;
@@ -180,14 +196,32 @@ classdef Tree_NPNN
                     xt_projected(dark_node_index, :) = (1/sqrt(D))*[cos(xt_projected_pre(dark_node_index, :)), sin(xt_projected_pre(dark_node_index, :))];
                     
                     % calculate discriminant in each node
-                    y_discriminant_ = xt_projected(dark_node_index, :)*w(:,dark_node_index)+b(dark_node_index);
+                    w_acc(:,dark_node_index) = w_acc(:,dark_node_index) + w(:,dark_node_index);
+                    w_avg(:,dark_node_index) = w_acc(:,dark_node_index)/i;
+                    b_acc(dark_node_index) = b_acc(dark_node_index) + b(dark_node_index);
+                    b_avg(dark_node_index) = b_acc(dark_node_index)/i;
+                    y_discriminant_ = xt_projected(dark_node_index, :)*w_avg(:,dark_node_index)+b_avg(dark_node_index);
                     y_discriminant(dark_node_index) = y_discriminant_;
                     C(dark_node_index) = sign(y_discriminant_);
                     
                 end
 
                 % probabilistic ensemble
-                yt_predict_index = dark_node_indices(find(rand<cumsum(mu_tree),1,'first'));
+                yt_predict_index = [];
+                while isempty(yt_predict_index)
+                    yt_predict_index = dark_node_indices(find(rand<cumsum(mu_tree),1,'first'));
+                    if isempty(yt_predict_index)
+                        % this section is triggered if context tree
+                        % framework fails to converge
+                        fprintf('%f,', mu_tree);
+                        fprintf('\n');
+                        fprintf('%f,', sigma_tree);
+                        fprintf('\n');
+                        error('Tree convergence failed...\nbeta_init: %d\ngamma: %.1f\nsigmoid_h: %1.f\nlambda: %3.f\ntree depth: %d\nsplit prob: %.1f\nnode loss constant: %.2f', ...
+                            obj.beta_init_,  obj.gamma_, obj.sigmoid_h_, obj.lambda_, ...
+                            obj.tree_depth_, obj.split_prob_, obj.node_loss_constant_);
+                    end
+                end
                 yt_predict = C(yt_predict_index);
                 
                 % save sample mu
@@ -236,12 +270,13 @@ classdef Tree_NPNN
                             end
                             % calculate weights
                             mu_tree__(k) = sigma_tree__(k)*E(dark_node_index)/P(1);
+                            
                             % make the projection
                             xt_projected_pre(dark_node_index, :) = xt_tmp*alpha((dark_node_index-1)*n_features+1:dark_node_index*n_features,:);
                             xt_projected(dark_node_index, :) = (1/sqrt(D))*[cos(xt_projected_pre(dark_node_index, :)), sin(xt_projected_pre(dark_node_index, :))];
 
                             % calculate discriminant in each node
-                            y_discriminant__single = xt_projected(dark_node_index, :)*w(:,dark_node_index)+b(dark_node_index);
+                            y_discriminant__single = xt_projected(dark_node_index, :)*w_avg(:,dark_node_index)+b_avg(dark_node_index);
                             y_discriminant__(dark_node_index) = y_discriminant__single;
                             C__(dark_node_index) = sign(y_discriminant__single);
                             
@@ -362,13 +397,17 @@ classdef Tree_NPNN
                 end
 
                 % update uzawa gain
-                beta = beta_init/(1+lambda*(number_of_positive_samples + number_of_negative_samples));
+                %beta = beta_init/(1+lambda*(number_of_positive_samples + number_of_negative_samples));
 
             end
             
             % save calculated parameters
             obj.w_ = w;
+            obj.w_acc_ = w_acc;
+            obj.w_avg_ = w_avg;
             obj.b_ = b;
+            obj.b_acc_ = b_acc;
+            obj.b_avg_ = b_avg;
             obj.connectivity_ = connectivity;
             obj.node_pc_means_ = node_pc_means;
             obj.P_ = P;
@@ -376,10 +415,13 @@ classdef Tree_NPNN
             obj.alpha_ = alpha;
             
             % save the results
+            obj.mu_train_array_ = sample_mu;
             obj.tpr_train_array_ = tpr_train_array;
             obj.fpr_train_array_ = fpr_train_array;
             obj.tpr_test_array_ = tpr_test_array;
             obj.fpr_test_array_ = fpr_test_array;
+            obj.neg_class_weight_train_array_ = neg_class_weight_train_array;
+            obj.pos_class_weight_train_array_ = pos_class_weight_train_array;
             
         end
         
@@ -520,6 +562,16 @@ classdef Tree_NPNN
             plot(obj.fpr_test_array_, 'LineWidth', 2);grid on;
             xlabel('Number of Tests');
             ylabel('Test FPR');
+            
+            figure
+            plot(obj.mu_train_array_, '*');grid on;
+            legends = cell(1, obj.tree_depth_+1);
+            for i=1:obj.tree_depth_+1
+                legends{i} = sprintf('Depth: %d', i-1);
+            end
+            legend(legends);
+            xlabel('Number of Training Samples');
+            ylabel('Weight of each piecewise NP models calculated at different tree depths');
             
         end
         

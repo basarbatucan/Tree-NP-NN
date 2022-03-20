@@ -82,8 +82,8 @@ classdef utility_functions
             tree_depth = model.tree_depth_;
             n_features = model.n_features_;
             D = model.D_;
-            w = model.w_;
-            b = model.b_;
+            w = model.w_avg_;
+            b = model.b_avg_;
             tfpr = model.tfpr_;
             P = model.P_;
             E = model.E_;
