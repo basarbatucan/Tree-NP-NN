@@ -9,15 +9,15 @@ function model = single_experiment(tfpr, data_name, test_repeat, optimized_param
 
     % Define model hyper-parameter space
     hyperparams.eta_init = 0.01;
-    hyperparams.beta_init = 5e2;
+    hyperparams.beta_init = 2e2;
     hyperparams.gamma = 1;
-    hyperparams.sigmoid_h = -1;
+    hyperparams.sigmoid_h = -2;
     hyperparams.lambda = 0;
-    hyperparams.tree_depth = [3,4,5];
+    hyperparams.tree_depth = [6];
     hyperparams.split_prob = 0.5;
-    hyperparams.node_loss_constant = 1;
-    hyperparams.D = 1;
-    hyperparams.g = 1;
+    hyperparams.node_loss_constant = 1.4;
+    hyperparams.D = 50;
+    hyperparams.g = 0.01;
 
     % generate hyper-parameter space 
     hyperparam_space = utility_functions.generate_hyperparameter_space_Tree_NPNN(hyperparams);
