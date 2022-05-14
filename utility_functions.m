@@ -82,8 +82,8 @@ classdef utility_functions
             tree_depth = model.tree_depth_;
             n_features = model.n_features_;
             D = model.D_;
-            w = model.w_avg_;
-            b = model.b_avg_;
+            w = model.w_;
+            b = model.b_;
             tfpr = model.tfpr_;
             P = model.P_;
             E = model.E_;
@@ -140,7 +140,12 @@ classdef utility_functions
                         
                     end
                     % probabilistic ensemble
-                    yt_predict_index = dark_node_indices(find(rand<cumsum(mu_tree),1,'first'));
+%                     yt_predict_index = dark_node_indices(find(rand<cumsum(mu_tree),1,'first'));
+                    
+                    [~, bb] = max(mu_tree);
+                    bb=bb(1);
+                    yt_predict_index  = dark_node_indices(bb);
+                    
                     yt_predict = C(yt_predict_index);
                     Z(i,j) = yt_predict;
                 end
@@ -179,7 +184,12 @@ classdef utility_functions
                     
                 end
                 % probabilistic ensemble
-                yt_predict_index = dark_node_indices(find(rand<cumsum(mu_tree),1,'first'));
+%                 yt_predict_index = dark_node_indices(find(rand<cumsum(mu_tree),1,'first'));
+                
+                [~, bb] = max(mu_tree);
+                bb=bb(1);
+                yt_predict_index  = dark_node_indices(bb);
+                    
                 y_pred(i) = C(yt_predict_index);
             end
             
@@ -191,8 +201,8 @@ classdef utility_functions
             % plot the decision boundary
             % plot the main data
             gscatter(x_(:,1),x_(:,2),y_label, 'brg', 'xo*');
-            xlabel('X_1');
-            ylabel('X_2');
+%             xlabel('X_1');
+%             ylabel('X_2');
             grid on
             hold on
 

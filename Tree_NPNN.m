@@ -8,11 +8,7 @@ classdef Tree_NPNN
         
         % parameters
         w_
-        w_acc_
-        w_avg_
         b_
-        b_acc_
-        b_avg_
         connectivity_
         node_pc_means_
         P_
@@ -39,6 +35,7 @@ classdef Tree_NPNN
         fpr_test_array_
         neg_class_weight_train_array_
         pos_class_weight_train_array_
+        test_indices_
         
     end
     
@@ -104,13 +101,8 @@ classdef Tree_NPNN
             mu_tree = zeros(tree_depth+1,1);
             
             % perceptron parameters
-            w = randn(2*D, tree_node_number);                              % weight of each node
-            w_acc = zeros(2*D, tree_node_number);                          % accumulated perceptron weight
-            w_avg = zeros(2*D, tree_node_number);                          % average perceptron weight
-            b = randn(1, tree_node_number);                                % bias of each node
-            b_acc = zeros(1, tree_node_number);                            % accumulated perceptron bias
-            b_avg = zeros(1, tree_node_number);                            % average perceptron bias
-            
+            w = randn(2*D, tree_node_number)*1e-4;                         % weight of each node
+            b = randn(1, tree_node_number)*1e-4;                           % bias of each node
             alpha = zeros(n_features*tree_node_number, D);
             for i=1:tree_node_number
                 alpha((i-1)*n_features+1:i*n_features,:) = mvnrnd(zeros(n_features,1), 2*g*eye(n_features), D)';
@@ -124,11 +116,7 @@ classdef Tree_NPNN
             
             % save initial model parameters
             obj.w_ = w;
-            obj.w_acc_ = w_acc;
-            obj.w_avg_ = w_avg;
             obj.b_ = b;
-            obj.b_acc_ = b_acc;
-            obj.b_avg_ = b_avg;
             obj.connectivity_ = connectivity;
             obj.node_pc_means_ = node_pc_means;
             obj.P_ = P;
@@ -196,11 +184,7 @@ classdef Tree_NPNN
                     xt_projected(dark_node_index, :) = (1/sqrt(D))*[cos(xt_projected_pre(dark_node_index, :)), sin(xt_projected_pre(dark_node_index, :))];
                     
                     % calculate discriminant in each node
-                    w_acc(:,dark_node_index) = w_acc(:,dark_node_index) + w(:,dark_node_index);
-                    w_avg(:,dark_node_index) = w_acc(:,dark_node_index)/i;
-                    b_acc(dark_node_index) = b_acc(dark_node_index) + b(dark_node_index);
-                    b_avg(dark_node_index) = b_acc(dark_node_index)/i;
-                    y_discriminant_ = xt_projected(dark_node_index, :)*w_avg(:,dark_node_index)+b_avg(dark_node_index);
+                    y_discriminant_ = xt_projected(dark_node_index, :)*w(:,dark_node_index)+b(dark_node_index);
                     y_discriminant(dark_node_index) = y_discriminant_;
                     C(dark_node_index) = sign(y_discriminant_);
                     
@@ -258,15 +242,15 @@ classdef Tree_NPNN
                         % get the sample
                         xt_tmp = X_test(j,:);
                         % find dark nodes
-                        dark_node_indices = obj.find_dark_nodes(xt_tmp);
-                        for k=1:length(dark_node_indices)
-                            dark_node_index = dark_node_indices(k);
+                        dark_node_indices__ = obj.find_dark_nodes(xt_tmp);
+                        for k=1:length(dark_node_indices__)
+                            dark_node_index = dark_node_indices__(k);
                             % calculate sigma
                             if k==1
                                 sigma_tree__(k) = 1-split_prob;
                             else
                                 sigma_tree__(k) = (1-split_prob)*P(connectivity(dark_node_index, 2))*sigma_tree__(k-1);
-                                if k==length(dark_node_indices)
+                                if k==length(dark_node_indices__)
                                     sigma_tree__(k)=sigma_tree__(k)/(1-split_prob);
                                 end
                             end
@@ -278,14 +262,14 @@ classdef Tree_NPNN
                             xt_projected__(dark_node_index, :) = (1/sqrt(D))*[cos(xt_projected_pre__(dark_node_index, :)), sin(xt_projected_pre__(dark_node_index, :))];
 
                             % calculate discriminant in each node
-                            y_discriminant__single = xt_projected__(dark_node_index, :)*w_avg(:,dark_node_index)+b_avg(dark_node_index);
+                            y_discriminant__single = xt_projected__(dark_node_index, :)*w(:,dark_node_index)+b(dark_node_index);
                             y_discriminant__(dark_node_index) = y_discriminant__single;
                             C__(dark_node_index) = sign(y_discriminant__single);
                             
                         end
                         
                         % probabilistic ensemble
-                        yt_predict_index = dark_node_indices(find(rand<cumsum(mu_tree__),1,'first'));
+                        yt_predict_index = dark_node_indices__(find(rand<cumsum(mu_tree__),1,'first'));
                         y_predict_tmp(j) = C__(yt_predict_index);
                         
                     end
@@ -358,7 +342,8 @@ classdef Tree_NPNN
                     % get the node loss
                     z = yt*y_discriminant(dark_node_index);
                     dloss_dz = utility_functions.deriv_sigmoid_loss(z,sigmoid_h);
-                    loss = mu*dloss_dz - gamma*tfpr;
+                    node_loss = utility_functions.sigmoid_loss(z,sigmoid_h);
+                    loss = mu*node_loss - gamma*tfpr;
                     % update node performance
                     E(dark_node_index) = E(dark_node_index)*exp(node_loss_constant*loss);
                     % update node prob
@@ -385,7 +370,7 @@ classdef Tree_NPNN
                 end
 
                 % update learning rate of perceptron
-                eta = eta_init/(1+lambda*(number_of_positive_samples + number_of_negative_samples));
+                %eta = eta_init/(1+lambda*(number_of_positive_samples + number_of_negative_samples));
 
                 % y(t)
                 if yt==1
@@ -399,17 +384,13 @@ classdef Tree_NPNN
                 end
 
                 % update uzawa gain
-                %beta = beta_init/(1+lambda*(number_of_positive_samples + number_of_negative_samples));
+                beta = beta_init/(1+lambda*(number_of_positive_samples + number_of_negative_samples));
 
             end
             
             % save calculated parameters
             obj.w_ = w;
-            obj.w_acc_ = w_acc;
-            obj.w_avg_ = w_avg;
             obj.b_ = b;
-            obj.b_acc_ = b_acc;
-            obj.b_avg_ = b_avg;
             obj.connectivity_ = connectivity;
             obj.node_pc_means_ = node_pc_means;
             obj.P_ = P;
@@ -424,6 +405,7 @@ classdef Tree_NPNN
             obj.fpr_test_array_ = fpr_test_array;
             obj.neg_class_weight_train_array_ = neg_class_weight_train_array;
             obj.pos_class_weight_train_array_ = pos_class_weight_train_array;
+            obj.test_indices_ = test_i;
             
         end
         
@@ -545,23 +527,30 @@ classdef Tree_NPNN
         
         function plot_results(obj)
             
-            subplot(2,2,1)
+            subplot(2,3,1)
             plot(obj.tpr_train_array_, 'LineWidth', 2);grid on;
             xlabel('Number of Training Samples');
             ylabel('Train TPR');
 
-            subplot(2,2,2)
+            subplot(2,3,2)
             plot(obj.fpr_train_array_, 'LineWidth', 2);grid on;
             xlabel('Number of Training Samples');
             ylabel('Train FPR');
 
-            subplot(2,2,3)
-            plot(obj.tpr_test_array_, 'LineWidth', 2);grid on;
+            subplot(2,3,3)
+            plot(obj.neg_class_weight_train_array_, 'LineWidth', 2);grid on;hold on;
+            plot(obj.pos_class_weight_train_array_, 'LineWidth', 2);
+            xlabel('Number of Training Samples');
+            ylabel('Class weights');
+            legend({'Neg class weight', 'Pos class weight'});
+            
+            subplot(2,3,4)
+            semilogx(obj.test_indices_, obj.tpr_test_array_, 'LineWidth', 2);grid on;
             xlabel('Number of Tests');
             ylabel('Test TPR');
 
-            subplot(2,2,4)
-            plot(obj.fpr_test_array_, 'LineWidth', 2);grid on;
+            subplot(2,3,5)
+            plot(obj.test_indices_, obj.fpr_test_array_, 'LineWidth', 2);grid on;
             xlabel('Number of Tests');
             ylabel('Test FPR');
             

@@ -7,28 +7,28 @@ function model = single_experiment(tfpr, data_name, test_repeat, optimized_param
 	augmentation_size = 150e3;
 	cross_val_MC = 8;
 
+    % Read Data
+    data = load(input_data_dir);
+    [X_train, X_val, X_test, y_train, y_val, y_test] = utility_functions.train_val_test_split(data.x, data.y, val_size, test_size);
+    n_features = size(X_train, 2);
+    
     % Define model hyper-parameter space
-    hyperparams.eta_init = 0.01;
-    hyperparams.beta_init = 2e2;
+    hyperparams.eta_init = 0.011;
+    hyperparams.beta_init = 2e3;
     hyperparams.gamma = 1;
     hyperparams.sigmoid_h = -2;
     hyperparams.lambda = 0;
-    hyperparams.tree_depth = [6];
+    hyperparams.tree_depth = [2];
     hyperparams.split_prob = 0.5;
-    hyperparams.node_loss_constant = 1.4;
-    hyperparams.D = 50;
-    hyperparams.g = 0.01;
+    hyperparams.node_loss_constant = 1;
+    hyperparams.D = 1*n_features;
+    hyperparams.g = 5/n_features;
 
     % generate hyper-parameter space 
     hyperparam_space = utility_functions.generate_hyperparameter_space_Tree_NPNN(hyperparams);
     hyperparam_number = length(hyperparam_space);
     cross_val_scores = zeros(cross_val_MC, hyperparam_number);
-
-    % Read Data
-    data = load(input_data_dir);
-    [X_train, X_val, X_test, y_train, y_val, y_test] = utility_functions.train_val_test_split(data.x, data.y, val_size, test_size);
-    n_features = size(X_train, 2);
-
+    
     % cross validation
     if isempty(optimized_params)
         

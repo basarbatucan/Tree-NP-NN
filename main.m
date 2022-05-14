@@ -5,7 +5,7 @@ clc
 % only look at first 5 for other analysis
 tfprs = [5e-3, 1e-2, 5e-2, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 tfpr_index = 4;
-MC = 16;
+MC = 32;
 forced_parameter_tuning_flag = 1;
 
 %data_name = 'avila';
@@ -52,7 +52,7 @@ end
 % hyperparameter is available
 hyper_params = load(out_hyper);
 % run the model with hyperparams
-test_repeat = 20;
+test_repeat = 100;
 
 % test tun with the selected parameters
 % comment this part in order to ignore one additional
@@ -92,4 +92,4 @@ save(sprintf('./output/%s/res_%03d',data_name, tfpr_index),...
 % for generating decision boundaries and transient outputs
 % for tree based online algorithms we are also printing out the weight
 % distribution
-model = single_experiment(tfpr, data_name, test_repeat, hyper_params);
+% model = single_experiment(tfpr, data_name, test_repeat, hyper_params);
